@@ -6,10 +6,10 @@ from pythonosc import udp_client
 
 # --- CONFIGURATION ---
 IP_LISTEN = "0.0.0.0"   # Listen to Mocopi
-PORT_LISTEN = 39539     # Port defined in Mocopi App
+PORT_LISTEN = 12352     # Port defined in Mocopi App
 
 IP_SEND = "127.0.0.1"   # Unity IP (Localhost)
-PORT_SEND = 39540       # Port Unity listens to
+PORT_SEND = 12353       # Port Unity listens to
 
 # Create the client to send data to Unity
 unity_client = udp_client.SimpleUDPClient(IP_SEND, PORT_SEND)
@@ -20,7 +20,8 @@ def data_handler(address, *args):
     2. PROCESS: Convert to JSON object.
     3. RELAY: Forward raw data to Unity immediately.
     """
-    
+    bone_name = args[0]
+    print(f"Os reçu : '{bone_name}'")
     # --- A. CONVERT TO JSON ---
     # Create a Python dictionary first
     data_dict = {
