@@ -1,0 +1,63 @@
+3) Cas “Empty hands” : fonctionne, mais logique discutable (design) ⚠️
+
+Sortie :
+
+trajectory=0.5, rhythm=0.5 (neutres) ✅
+
+pose=1.0 → et donc final = 0.51 + 0.30.5 + 0.2*0.5 = 0.75 → grade Good
+
+Ce n’est pas un bug : ton input “Empty hands” contient rotations {"Hips": identity} et ton pose_score.py ne juge que les joints présents à la fois dans player et ref.
+Si “Hips” est le seul joint commun et que c’est identique → pose=1.
+
+Question produit : est-ce que tu veux que “données incomplètes” puissent donner Good ?
+Souvent, non. Tu veux plutôt dégrader la confiance si le nombre de joints comparés est trop faible.
+
+✅ Solution simple (recommandée) : dans compute_pose_score, exiger un minimum de joints comparés (ex: 3), sinon renvoyer 0.5 ou 0.0.
+Exemple : si count < 3: return 0.5 (neutre) ou return 0.0 (punitif).
+
+4) Cas “NaN frame” : ça marche, mais ton grade “Perfect” est trompeur ⚠️
+
+Sortie :
+
+trajectory_valid:false → super (la frame NaN n’a pas cassé le système) ✅
+
+trajectory=0.5 (neutre) ✅
+
+rhythm=1.0 (parce que ton signal est suffisamment long ici, et tu n’as pas rendu le rythme neutre dans ce cas) ✅
+
+pose=1.0 (rotations identiques) ✅
+
+final = 0.51 + 0.30.5 + 0.2*1 = 0.85 → Perfect
+
+C’est mathématiquement cohérent, mais produit-wise : une frame avec NaN (donc tracking mauvais) qui donne “Perfect” peut être problématique.
+
+✅ Deux options (choix de design) :
+
+Option “confiance” : si trajectory_valid=False, tu empêches un Perfect :
+
+ex : cap final_score = min(final_score, 0.84) ou grade = min(grade, "Good")
+
+Option “pénalisation légère” : au lieu de trajectory=0.5 quand invalide, tu mets trajectory=0.2 ou 0.0.
+
+Conclusion
+Oui, tout fonctionne maintenant côté code ✅
+
+Plus de crash
+
+DTW correct
+
+Cas manquants/NaN gérés proprement
+
+Debug cohérent
+
+Ce qui reste : régler la logique “données insuffisantes” (design) ⚠️
+
+Pose=1 avec seulement Hips commun (Empty hands)
+
+Perfect possible même si trajectory invalide (NaN frame)
+
+Si tu me dis ton intention (plutôt neutre ou plutôt punitif quand il manque des données), je te donne les 2 patches exacts :
+
+un seuil minimum de joints pour pose_score.py
+
+une règle de “cap” sur le grade quand trajectory_valid=False (ou un ajustement de trajectory neutre).

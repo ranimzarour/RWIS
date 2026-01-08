@@ -1,0 +1,165 @@
+motion_scoring/
+│
+├── main.py                 # Entry point called by Unity: parse JSON, compute scores, return JSON
+├── config.py               # Weights (pose/trajectory/rhythm), WINDOW_SIZE, JOINT_WEIGHTS
+│
+├── pose_score.py           # Pose similarity using joint rotations (quaternions)
+├── rhythm_score.py         # Rhythm / timing similarity from a motion signal
+│
+├── dtw_online.py           # Sliding-window DTW (banded), persistent state + reset
+├── utils.py                # JSON -> numpy parsing, robust quaternion distance, filters, compute_grade
+│
+└── trajectory_score.py     # (Optional / legacy) direct trajectory score - not used when DTW is used
+
+
+Unity integration (data flow):
+[Unity + mocopi tracking]
+        ↓  (JSON)
+[Python scoring: process_unity_message()]
+        ↓  (JSON)
+[Unity UI feedback: score + grade]
+
+Called every frame (or every N frames).
+
+
+Scoring overview
+----------------
+The global score is a weighted sum (clamped to [0, 1]):
+
+final = POSE_WEIGHT * pose
+      + TRAJECTORY_WEIGHT * trajectory
+      + RHYTHM_WEIGHT * rhythm
+
+1) Pose score (pose_score.py)
+- Compares joint rotations (quaternions) for a set of important joints (JOINT_WEIGHTS).
+- Quaternion distance is normalized in [0, 1] (0 = same, 1 = very different), then converted to a score (1 - error).
+- Robust to missing joints: only joints present in BOTH player and reference are used.
+
+2) Trajectory score (dtw_online.py + main.py)
+- DTW feature is 6D: current LeftHand (x,y,z) + RightHand (x,y,z).
+- Uses a banded sliding-window DTW (Sakoe-Chiba band) over WINDOW_SIZE frames to tolerate small timing shifts.
+- DTW cost is converted into a [0, 1] score:
+  trajectory = exp(-dtw_cost)
+
+Missing/invalid trajectory data handling:
+- If hands are missing (no keys / empty lists) or contain NaN/Inf, extract_dtw_feature() returns None.
+- In that case:
+  - DTW is NOT updated,
+  - trajectory is set to 0.5 (neutral),
+  - trajectory_valid = false,
+  - dtw_cost = null.
+
+3) Rhythm score (rhythm_score.py)
+- Computes an approximate velocity via diff() on rhythm_signal, compares player vs reference energy (norm).
+- Returns exp(-normalized_error).
+- If the signal is too short (< 2 samples), returns 0.5 (neutral).
+
+
+Special command: reset (new song / retry / new player)
+------------------------------------------------------
+Unity can reset the DTW internal state:
+
+{"command": "reset"}
+
+Response:
+{"ok": true, "reset": true}
+
+
+Input data format (JSON)
+------------------------
+The module expects JSON. utils.json_to_motion_data() converts it to numpy structures and handles missing keys.
+
+Logical internal structure after parsing:
+
+player_data / ref_data = {
+    "timestamp": float,
+    "rotations": Dict[str, np.ndarray],           # each quaternion shape (4,)
+    "trajectories": Dict[str, List[np.ndarray]],  # each point shape (3,)
+    "rhythm_signal": np.ndarray                   # shape (T,) or (T, D)
+}
+
+rotations (quaternions)
+- Each joint is a 4-float quaternion.
+- Expected order is wxyz, but quaternion_distance() is tolerant (it also tries xyzw and keeps the best match).
+
+Example:
+"rotations": {
+  "Hips":      [0.99, 0.01, 0.02, 0.03],
+  "Spine":     [0.98, 0.02, 0.03, 0.01],
+  "LeftHand":  [0.88, 0.45, 0.10, 0.05],
+  "RightHand": [0.87, -0.46, 0.11, -0.06]
+}
+
+trajectories
+- Each trajectory is a list of [x,y,z] points.
+- Unity may send either the full history up to the current frame or a recent window.
+- For DTW, only the latest LeftHand/RightHand sample is used per frame.
+
+Example:
+"trajectories": {
+  "LeftHand":  [[0.10,1.20,0.30], [0.12,1.22,0.31], [0.15,1.25,0.35]],
+  "RightHand": [[-0.10,1.20,0.30], [-0.12,1.22,0.31], [-0.15,1.25,0.35]]
+}
+
+rhythm_signal
+- Can be 1D: shape (T,)  (e.g., amplitude/energy/acceleration magnitude)
+- Or 2D: shape (T, 3) (e.g., acceleration XYZ)
+- The code automatically supports both.
+
+Example 1D:
+"rhythm_signal": [0.0, 0.1, 0.05, -0.02, ...]
+
+Example 3D:
+"rhythm_signal": [[0.0,1.0,0.0], [0.1,1.1,0.0], ...]
+
+
+Output format (JSON)
+--------------------
+The module always returns JSON.
+- If parsing fails (invalid JSON), it returns ok=false with an error message.
+
+Standard output:
+{
+  "final": 0.83,
+  "pose": 0.91,
+  "trajectory": 0.78,
+  "rhythm": 0.88,
+  "grade": "Good",
+  "ok": true,
+
+  "trajectory_valid": true,
+  "dtw_cost": 0.24
+}
+
+If trajectory data is missing/invalid (DTW not updated):
+{
+  "final": 0.62,
+  "pose": 0.91,
+  "trajectory": 0.5,
+  "rhythm": 0.88,
+  "grade": "Good",
+  "ok": true,
+
+  "trajectory_valid": false,
+  "dtw_cost": null
+}
+
+Error output (e.g., invalid JSON):
+{
+  "ok": false,
+  "error": "...",
+  "final": 0.0,
+  "pose": 0.0,
+  "trajectory": 0.0,
+  "rhythm": 0.0,
+  "grade": "Miss"
+}
+
+
+Notes / operational guidelines
+------------------------------
+- dtw_online.py keeps a sliding memory window; send {"command":"reset"} at the beginning of each song/session.
+- The pipeline is designed to be robust:
+  - Missing keys => neutral or low scores, no crash.
+  - NaN/Inf in hands features => DTW update skipped, trajectory neutral and trajectory_valid=false.
+- trajectory_score.py is kept as legacy; the current pipeline uses DTW for trajectory scoring.
