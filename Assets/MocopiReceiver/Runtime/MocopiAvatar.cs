@@ -1,18 +1,6 @@
 ﻿/*
-* Copyright (C) 2025 Sony Corporation
-*
-* Licensed under the Apache License, Version 2.0 (the "License");
-* you may not use this file except in compliance with the License.
-* You may obtain a copy of the License at
-*
-*      http://www.apache.org/licenses/LICENSE-2.0
-*
-* Unless required by applicable law or agreed to in writing, software
-* distributed under the License is distributed on an "AS IS" BASIS,
-* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-* See the License for the specific language governing permissions and
-* limitations under the License.
-*/
+ * Copyright 2022 Sony Corporation
+ */
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
@@ -48,11 +36,11 @@ namespace Mocopi.Receiver
             { "LeftUpperLeg",   19 },
             { "LeftLowerLeg",   20 },
             { "LeftFoot",       21 },
-            { "LeftToes",    22 },
+            { "LeftToeBase",    22 },
             { "RightUpperLeg",  23 },
             { "RightLowerLeg",  24 },
             { "RightFoot",      25 },
-            { "RightToes",   26 }
+            { "RightToeBase",   26 }
         };
 
         /// <summary>
@@ -348,11 +336,6 @@ namespace Mocopi.Receiver
         /// <param name="timestamp">Timestamp</param>
         /// <param name="unixTime">Unix time when sensor sent data</param>
         /// <param name="boneIds">mocopi Avatar bone id list</param>
-		/// <param name="timecodeHour">Value of timecode hour</param>
-		/// <param name="timecodeMin">Value of timecode minute</param>
-		/// <param name="timecodeSec">Value of timecode second</param>
-		/// <param name="timecodeFrame">Value of timecode frame</param>
-		/// <param name="timecodeDropFrame">Value of timecode drop frame</param>
         /// <param name="rotationsX">Rotation angle of each bone</param>
         /// <param name="rotationsY">Rotation angle of each bone</param>
         /// <param name="rotationsZ">Rotation angle of each bone</param>
@@ -363,8 +346,6 @@ namespace Mocopi.Receiver
         /// <remarks><see cref="MocopiAvatarBase.UpdateSkeleton(int[], float[], float[], float[], float[], float[], float[], float[])"/></remarks>
         public override void UpdateSkeleton(
             int frameId, float timestamp, double unixTime,
-            byte timecodeHour, byte timecodeMin, byte timecodeSec, byte timecodeFrame,
-            byte timecodeFrameRate, bool timecodeDropFrame,
             int[] boneIds,
             float[] rotationsX, float[] rotationsY, float[] rotationsZ, float[] rotationsW,
             float[] positionsX, float[] positionsY, float[] positionsZ
@@ -373,11 +354,6 @@ namespace Mocopi.Receiver
             this.skeletonData.FrameId = frameId;
             this.skeletonData.Timestamp = timestamp;
             this.skeletonData.UnixTime = unixTime;
-            this.skeletonData.Timecode.Hour = timecodeHour;
-            this.skeletonData.Timecode.Minute = timecodeMin;
-            this.skeletonData.Timecode.Second = timecodeSec;
-            this.skeletonData.Timecode.Frame = timecodeFrame;
-            this.skeletonData.Timecode.DropFrame = timecodeDropFrame;
             this.skeletonData.BoneIds = boneIds;
             this.skeletonData.RotationsX = rotationsX;
             this.skeletonData.RotationsY = rotationsY;
@@ -1067,21 +1043,6 @@ namespace Mocopi.Receiver
                 -(float)w
             );
         }
-
-        /// <summary>
-        /// Get last timecode values
-        /// </summary>
-        /// <param name="hour"></param>
-        /// <param name="min"></param>
-        /// <param name="sec"></param>
-        /// <param name="frame"></param>
-        public void GetTimecode(out int hour, out int min, out int sec, out int frame)
-        {
-            hour = skeletonData.Timecode.Hour;
-            min = skeletonData.Timecode.Minute;
-            sec = skeletonData.Timecode.Second;
-            frame = skeletonData.Timecode.Frame;
-        }
         #endregion --Methods--
 
         #region --Structs--
@@ -1157,11 +1118,6 @@ namespace Mocopi.Receiver
             public double UnixTime;
 
             /// <summary>
-            /// Timecode
-            /// </summary>
-            public Timecode Timecode;
-
-            /// <summary>
             /// mocopi Avatar bone id list
             /// </summary>
             public int[] BoneIds;
@@ -1200,37 +1156,6 @@ namespace Mocopi.Receiver
             /// Position of each bone in initial pose
             /// </summary>
             public float[] PositionsZ;
-        }
-
-        /// <summary>
-        /// Timecode structure
-        /// </summary>
-        private struct Timecode
-        {
-            /// <summary>
-            /// Timecode hour
-            /// </summary>
-            public int Hour;
-
-            /// <summary>
-            /// Timecode minute
-            /// </summary>
-            public int Minute;
-
-            /// <summary>
-            /// Timecode second
-            /// </summary>
-            public int Second;
-
-            /// <summary>
-            /// Timecode frame
-            /// </summary>
-            public int Frame;
-
-            /// <summary>
-            /// Timecode drop frame
-            /// </summary>
-            public bool DropFrame;
         }
         #endregion --Structs--
 

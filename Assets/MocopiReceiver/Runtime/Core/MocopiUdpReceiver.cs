@@ -1,19 +1,7 @@
 ﻿/*
-* Copyright (C) 2025 Sony Corporation
-*
-* Licensed under the Apache License, Version 2.0 (the "License");
-* you may not use this file except in compliance with the License.
-* You may obtain a copy of the License at
-*
-*      http://www.apache.org/licenses/LICENSE-2.0
-*
-* Unless required by applicable law or agreed to in writing, software
-* distributed under the License is distributed on an "AS IS" BASIS,
-* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-* See the License for the specific language governing permissions and
-* limitations under the License.
-*/
-using Sony.MMF;
+ * Copyright 2022 Sony Corporation
+ */
+using Sony.SMF;
 using System;
 using System.Net;
 using System.Net.Sockets;
@@ -50,8 +38,6 @@ namespace Mocopi.Receiver.Core
         public ReceiveFrameDataEvent OnReceiveFrameData = new ReceiveFrameDataEvent(
             (
                 int frameId, float timestamp, double unixTime,
-                byte timecodeHour, byte timecodeMin, byte timecodeSec, byte timecodeFrame,
-                byte timecodeFrameRate, bool timecodeDropFrame,
                 int[] boneIds,
                 float[] rotationsX, float[] rotationsY, float[] rotationsZ, float[] rotationsW,
                 float[] positionsX, float[] positionsY, float[] positionsZ
@@ -138,12 +124,6 @@ namespace Mocopi.Receiver.Core
         /// <param name="frameId">Frame Id</param>
         /// <param name="timestamp">Timestamp</param>
         /// <param name="unixTime">Unix time when sensor sent data</param>
-        /// <param name="timecodeHour">Timecode hour</param>
-        /// <param name="timecodeMin">Timecode minute</param>
-        /// <param name="timecodeSec">Timecode second</param>
-        /// <param name="timecodeFrame">Timecode frame</param>
-        /// <param name="timecodeFrameRate">Timecode frame rate</param>
-        /// <param name="timecodeDropFrame">Timecode drop frame</param>
         /// <param name="boneIds">Id of bones</param>
         /// <param name="rotationsX">rotations in the X direction</param>
         /// <param name="rotationsY">rotations in the Y direction</param>
@@ -154,8 +134,6 @@ namespace Mocopi.Receiver.Core
         /// <param name="positionsZ">Z coordinate of position</param>
         public delegate void ReceiveFrameDataEvent(
             int frameId, float timestamp, double unixTime,
-            byte timecodeHour, byte timecodeMin, byte timecodeSec, byte timecodeFrame,
-            byte timecodeFrameRate, bool timecodeDropFrame,
             int[] boneIds,
             float[] rotationsX, float[] rotationsY, float[] rotationsZ, float[] rotationsW,
             float[] positionsX, float[] positionsY, float[] positionsZ
@@ -280,10 +258,10 @@ namespace Mocopi.Receiver.Core
 
                     lock (lockObject)
                     {
-                        if (MocopiMotionFormat.IsMmfBytes(message.Length, message))
+                        if (SonyMotionFormat.IsSmfBytes(message.Length, message))
                         {
-                            // Processing of data acquired in "MocopiMotionFormat"
-                            this.HandleMocopiMotionFormatData(message);
+                            // Processing of data acquired in "SonyMotionFormat"
+                            this.HandleSonyMotionFormatData(message);
                         }
                     }
                 }
@@ -304,15 +282,15 @@ namespace Mocopi.Receiver.Core
         }
 
         /// <summary>
-        /// Convert "MocopiMotionFormat" data to move the avatar
+        /// Convert "SonyMotionFormat" data to move the avatar
         /// </summary>
         /// <param name="message">Udp data</param>
-        private void HandleMocopiMotionFormatData(byte[] message)
+        private void HandleSonyMotionFormatData(byte[] message)
         {
             int bytesSize = message.Length;
-            if (MocopiMotionFormat.IsSkeletonDefinitionBytes(bytesSize, message))
+            if (SonyMotionFormat.IsSkeletonDefinitionBytes(bytesSize, message))
             {
-                if (MocopiMotionFormat.ConvertBytesToSkeletonDefinition(
+                if (SonyMotionFormat.ConvertBytesToSkeletonDefinition(
                     bytesSize,
                     message,
                     out ulong ulongSenderIp,
@@ -344,9 +322,9 @@ namespace Mocopi.Receiver.Core
                     );
                 }
             }
-            else if (MocopiMotionFormat.IsFrameDataBytes(bytesSize, message))
+            else if (SonyMotionFormat.IsFrameDataBytes(bytesSize, message))
             {
-                if (MocopiMotionFormat.ConvertBytesToFrameData(
+                if (SonyMotionFormat.ConvertBytesToFrameData(
                     bytesSize,
                     message,
                     out ulong ulongSenderIp,
@@ -354,12 +332,6 @@ namespace Mocopi.Receiver.Core
                     out int frameid,
                     out float timestamp,
                     out double unixTime,
-                    out byte timecodeHour,
-                    out byte timecodeMin,
-                    out byte timecodeSec,
-                    out byte timecodeFrame,
-                    out byte timecodeFrameRate,
-                    out bool timecodeDropFrame,
                     out int size,
                     out IntPtr ptrBoneIds,
                     out IntPtr ptrRotationsX,
@@ -377,12 +349,6 @@ namespace Mocopi.Receiver.Core
                         frameid,
                         timestamp,
                         unixTime,
-                        timecodeHour,
-                        timecodeMin,
-                        timecodeSec,
-                        timecodeFrame,
-                        timecodeFrameRate,
-                        timecodeDropFrame,
                         PointerToArray<int>(ptrBoneIds, size),
                         PointerToArray<float>(ptrRotationsX, size),
                         PointerToArray<float>(ptrRotationsY, size),
@@ -442,9 +408,7 @@ namespace Mocopi.Receiver.Core
         /// <param name="positionsZ">Z coordinate of position</param>
         private void SetSkeletonData(
             string senderIp, int senderPort,
-            int frameid, float timestamp, double unixTime,
-            byte timecodeHour, byte timecodeMin, byte timecodeSec, byte timecodeFrame,
-            byte timecodeFrameRate, bool timecodeDropFrame,
+            int frameid, float timestamp,double unixTime,
             int[] boneIds,
             float[] rotationsX, float[] rotationsY, float[] rotationsZ, float[] rotationsW,
             float[] positionsX, float[] positionsY, float[] positionsZ
@@ -452,8 +416,6 @@ namespace Mocopi.Receiver.Core
         {
             this.OnReceiveFrameData?.Invoke(
                 frameid, timestamp, unixTime,
-                timecodeHour, timecodeMin, timecodeSec, timecodeFrame,
-                timecodeFrameRate, timecodeDropFrame,
                 boneIds,
                 rotationsX, rotationsY, rotationsZ, rotationsW,
                 positionsX, positionsY, positionsZ
